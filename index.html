@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zeeuwse Horeca Zaken - Aanbod op de kaart</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #004274;
+    --accent-dark: #002d4f;
+    --bg-dark: #004274;
+    --panel-bg: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #map { position: absolute; top: 64px; bottom: 0; left: 0; right: 0; }
+  header {
+    height: 64px;
+    background: var(--bg-dark);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+    position: relative;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  header h1 {
+    font-size: 17px;
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  header .sub {
+    font-size: 12.5px;
+    color: #bcd6ea;
+    margin-top: 2px;
+  }
+  header .count-badge {
+    background: #ffffff;
+    color: var(--accent-dark);
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .leaflet-popup-content-wrapper {
+    border-radius: 8px;
+  }
+  .popup-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    color: #1c1a17;
+  }
+  .popup-link {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: #fff;
+    background: var(--accent);
+    padding: 5px 10px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .popup-link:hover { background: var(--accent-dark); }
+  .pin-wrap {
+    position: relative;
+    width: 20px;
+    height: 20px;
+  }
+  .pin-drop {
+    position: absolute;
+    top: 0; left: 0;
+    width: 20px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.45);
+  }
+  .pin-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    background: #fff;
+    color: var(--accent-dark);
+    border: 2px solid var(--accent);
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  #search-box {
+    position: absolute;
+    top: 76px;
+    left: 12px;
+    z-index: 1000;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    padding: 8px;
+    width: 260px;
+    max-width: calc(100vw - 24px);
+  }
+  #search-box input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13.5px;
+    outline: none;
+  }
+  #search-box input:focus { border-color: var(--accent); }
+  #search-results {
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 6px;
+  }
+  .search-result-item {
+    padding: 7px 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+    border-radius: 5px;
+    line-height: 1.3;
+  }
+  .search-result-item:hover { background: #eaf2f8; }
+  .leaflet-control-attribution { font-size: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Zeeuwse Horeca Zaken &mdash; Aanbod op de kaart</h1>
+    <div class="sub">Alle horecaobjecten van Zeeuwse Horeca Zaken, te koop of te huur</div>
+  </div>
+  <div class="count-badge" id="count-badge">... objecten</div>
+</header>
+
+<div id="search-box">
+  <input type="text" id="search-input" placeholder="Zoek op plaats of titel..." autocomplete="off">
+  <div id="search-results"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script>
+const DATA_URL = './data/objects.json';
+
+const mapEl = document.getElementById('map');
+const loadingEl = document.createElement('div');
+loadingEl.id = 'map-loading';
+loadingEl.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
+  'background:#fff;padding:14px 20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.2);' +
+  'font-size:14px;color:#333;z-index:2000;';
+loadingEl.textContent = 'Kaartdata wordt geladen...';
+mapEl.appendChild(loadingEl);
+
+let OBJECTS = [];
+
+fetch(DATA_URL, { cache: 'no-store' })
+  .then(res => {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  })
+  .then(data => {
+    OBJECTS = data;
+    loadingEl.remove();
+    initMap();
+  })
+  .catch(err => {
+    loadingEl.textContent = 'Kon kaartdata niet laden. Probeer de pagina te verversen.';
+    loadingEl.style.color = '#b00020';
+    console.error('Kon ' + DATA_URL + ' niet laden:', err);
+  });
+
+function initMap() {
+
+document.getElementById('count-badge').textContent = OBJECTS.length + ' objecten';
+
+// --- Spread markers that share (nearly) the same coordinates ---
+// Groups objects by rounded lat/lng and arranges them in a small circle
+// around the shared point so they don't sit exactly on top of each other.
+(function spreadOverlappingMarkers() {
+  const groups = {};
+  OBJECTS.forEach(o => {
+    const key = o.lat.toFixed(5) + ',' + o.lng.toFixed(5);
+    (groups[key] = groups[key] || []).push(o);
+  });
+
+  const RADIUS_METERS = 45; // distance of each point from the shared center
+  Object.values(groups).forEach(group => {
+    if (group.length < 2) return;
+    const n = group.length;
+    const latRad = group[0].lat * Math.PI / 180;
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = 111320 * Math.cos(latRad);
+    group.forEach((o, i) => {
+      const angle = (2 * Math.PI * i) / n;
+      o.lat = o.lat + (RADIUS_METERS * Math.sin(angle)) / metersPerDegLat;
+      o.lng = o.lng + (RADIUS_METERS * Math.cos(angle)) / metersPerDegLng;
+    });
+  });
+})();
+
+const map = L.map('map', { zoomControl: true }).setView([51.5, 3.85], 9);
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 16,
+  attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+}).addTo(map);
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 16
+}).addTo(map);
+
+// Uniform teardrop-shaped pin for every marker, single or clustered.
+// A count badge appears in the top-right corner only when a pin
+// represents more than one object. Every pin uses the Zeeuwse Horeca
+// Zaken brand color — there's only one makelaar on this map.
+const PIN_SIZE = 22;
+const PIN_COLOR = '#004274';
+
+function pinHtml(count) {
+  const badge = count > 1
+    ? '<div class="pin-badge" style="border-color:' + PIN_COLOR + '; color:' + PIN_COLOR + '">' + count + '</div>'
+    : '';
+  return '<div class="pin-wrap"><div class="pin-drop" style="background:' + PIN_COLOR + '"></div>' + badge + '</div>';
+}
+
+function pinIcon(count) {
+  return L.divIcon({
+    className: '',
+    html: pinHtml(count),
+    iconSize: [PIN_SIZE, PIN_SIZE],
+    iconAnchor: [PIN_SIZE / 2, PIN_SIZE],
+    popupAnchor: [0, -PIN_SIZE + 4]
+  });
+}
+
+const cluster = L.markerClusterGroup({
+  iconCreateFunction: function(c) {
+    return pinIcon(c.getChildCount());
+  },
+  maxClusterRadius: 45
+});
+
+const markersById = {};
+
+OBJECTS.forEach(obj => {
+  const m = L.marker([obj.lat, obj.lng], { icon: pinIcon(1) });
+  const safeTitle = obj.title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  m.bindPopup(
+    '<div class="popup-title">' + safeTitle + '</div>' +
+    '<a class="popup-link" href="' + obj.link + '" target="_blank" rel="noopener">Bekijk object &rarr;</a>'
+  );
+  markersById[obj.id] = m;
+  cluster.addLayer(m);
+});
+
+map.addLayer(cluster);
+
+// Open centered on Zeeland, fully in view.
+const ZEELAND_BOUNDS = L.latLngBounds([51.15, 3.35], [51.75, 4.35]);
+map.fitBounds(ZEELAND_BOUNDS, { padding: [20, 20] });
+
+
+// --- Simple search ---
+const input = document.getElementById('search-input');
+const resultsBox = document.getElementById('search-results');
+
+function normalize(s) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+input.addEventListener('input', () => {
+  const q = normalize(input.value.trim());
+  resultsBox.innerHTML = '';
+  if (q.length < 2) return;
+  const matches = OBJECTS.filter(o => normalize(o.title).includes(q)).slice(0, 25);
+  matches.forEach(o => {
+    const div = document.createElement('div');
+    div.className = 'search-result-item';
+    div.textContent = o.title;
+    div.onclick = () => {
+      map.setView([o.lat, o.lng], 14, { animate: true });
+      cluster.zoomToShowLayer(markersById[o.id], () => {
+        markersById[o.id].openPopup();
+      });
+    };
+    resultsBox.appendChild(div);
+  });
+});
+}
+</script>
+</body>
+</html>

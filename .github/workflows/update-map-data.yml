@@ -1,0 +1,41 @@
+name: Update ZHZ map data
+
+on:
+  schedule:
+    # Draait elke nacht om 03:00 UTC (05:00 NL-zomertijd / 04:00 wintertijd)
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}   # laat je ook handmatig starten via de GitHub-UI
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo uitchecken
+        uses: actions/checkout@v4
+
+      - name: Python instellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependencies installeren
+        run: pip install requests
+
+      - name: Data verversen
+        run: python scripts/update_data.py
+
+      - name: Wijzigingen committen (alleen als er iets veranderd is)
+        run: |
+          git config user.name "zhz-map-bot"
+          git config user.email "actions@github.com"
+          git add data/objects.json
+          if git diff --cached --quiet; then
+            echo "Geen wijzigingen, niets te committen."
+          else
+            git commit -m "Automatische update van objectdata ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+            git pull --rebase origin main
+            git push
+          fi

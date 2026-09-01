@@ -1,58 +1,79 @@
 [
   {
-    "id": "11547",
-    "title": "Eeterij Zeeuwse Jongen Zierikzee",
-    "lat": 51.646758,
-    "lng": 3.918292,
-    "link": "https://vmh-horeca.nl/aanbod/eeterij-zeeuwse-jongen-zierikzee/"
-  },
-  {
-    "id": "11208",
-    "title": "Te huur Eetcafé De Concurrent",
-    "lat": 51.442,
-    "lng": 3.5738,
-    "link": "https://vmh-horeca.nl/aanbod/te-huur-eetcafe-de-concurrent/"
-  },
-  {
-    "id": "11148",
-    "title": "Restaurant El Castillo Vlissingen",
-    "lat": 51.441152,
-    "lng": 3.5747,
-    "link": "https://vmh-horeca.nl/aanbod/restaurant-el-castillo-vlissingen/"
-  },
-  {
-    "id": "11545",
+    "id": "locaal39",
     "title": "Te koop: Locaal 39, karaktervol lunchcafé in hartje Middelburg eventueel met bovenwoning",
-    "lat": 51.499328,
-    "lng": 3.6134316,
-    "link": "https://vmh-horeca.nl/aanbod/te-koop-locaal-39-karaktervol-lunchcafe-in-hartje-middelburg/"
+    "lat": 51.4993238,
+    "lng": 3.6133807,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/locaal39"
   },
   {
-    "id": "11202",
-    "title": "Restaurant Nopal te Vlissingen",
-    "lat": 51.4423,
-    "lng": 3.573,
-    "link": "https://vmh-horeca.nl/aanbod/restaurant-nopal-te-vlissingen/"
+    "id": "eeterij-zeeuwse-jongen-zierikzee",
+    "title": "Eeterij Zeeuwse Jongen Zierikzee",
+    "lat": 51.6497688,
+    "lng": 3.9208365,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/eeterij-zeeuwse-jongen-zierikzee"
   },
   {
-    "id": "11212",
-    "title": "Strandpaviljoen Bij Karel te Oostkapelle",
-    "lat": 51.588,
-    "lng": 3.5375,
-    "link": "https://vmh-horeca.nl/aanbod/strandpaviljoen-bij-karel-te-oostkapelle/"
-  },
-  {
-    "id": "11249",
-    "title": "Lunchroom Tilly Rose",
-    "lat": 51.4426,
-    "lng": 3.5739,
-    "link": "https://vmh-horeca.nl/aanbod/lunchroom-tilly-rose/"
-  },
-  {
-    "id": "11324",
+    "id": "cluys-west",
     "title": "Napolitaanse Pizzeria Cluys West, eventueel met bovenwoning",
-    "lat": 51.53,
-    "lng": 3.4418,
-    "link": "https://vmh-horeca.nl/aanbod/napolitaanse-pizzeria-cluys-west-eventueel-met-bovenwoning/"
+    "lat": 51.5293313,
+    "lng": 3.4407863,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/cluys-west"
+  },
+  {
+    "id": "tillyrose",
+    "title": "Lunchroom Tilly Rose",
+    "lat": 51.4480929,
+    "lng": 3.5697992,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/tillyrose"
+  },
+  {
+    "id": "elcastillo",
+    "title": "Restaurant El Castillo Vlissingen",
+    "lat": 51.4480929,
+    "lng": 3.5697992,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/elcastillo"
+  },
+  {
+    "id": "nopal",
+    "title": "Restaurant Nopal te Vlissingen",
+    "lat": 51.4480929,
+    "lng": 3.5697992,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/nopal"
+  },
+  {
+    "id": "deconcurrent",
+    "title": "Te huur Eetcafé De Concurrent",
+    "lat": 51.4480929,
+    "lng": 3.5697992,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/deconcurrent"
+  },
+  {
+    "id": "bijkarel",
+    "title": "Strandpaviljoen Bij Karel te Oostkapelle",
+    "lat": 51.5654515,
+    "lng": 3.5509041,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/bijkarel"
+  },
+  {
+    "id": "admiraliteitskade",
+    "title": "Cascoruimte aan de admiraliteitskade 94-96 te Rotterdam",
+    "lat": 51.9244424,
+    "lng": 4.47775,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/admiraliteitskade"
+  },
+  {
+    "id": "casco-restaurant-middelburg",
+    "title": "Te huur: casco restaurantlocatie in Middelburg",
+    "lat": 51.4996784,
+    "lng": 3.6137371,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/casco-restaurant-middelburg"
+  },
+  {
+    "id": "ontwikkelingmiddelburg",
+    "title": "Unieke hotelontwikkeling in hartje Middelburg",
+    "lat": 51.4996784,
+    "lng": 3.6137371,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/ontwikkelingmiddelburg"
   }
 ]

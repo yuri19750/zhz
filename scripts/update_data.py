@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-Ververst data/objects.json met alle objecten van Zeeuwse Horeca Zaken die
-daadwerkelijk op https://vmh-horeca.nl/aanbod/ staan, inclusief lat/lon.
+Ververst data/objects.json met alle actuele (te koop / te huur) objecten
+van https://www.zeeuwsehorecazaken.nl/objecten — de EIGEN site van
+Zeeuwse Horeca Zaken, niet vmh-horeca.nl.
 
-Dit is de site-specifieke variant van het VMH-brede scrape-script: hij
-haalt wel de volledige live objectenlijst op (nodig om te weten welke
-makelaar bij welk object hoort), maar verwerkt en bewaart alleen de
-objecten die bij Zeeuwse Horeca Zaken horen.
-
-Werkwijze (zelfde als de handmatige aanpak):
-1. Haal de live objectenlijst + makelaar op van de /aanbod/ archiefpagina
-   (dit is de "waarheid" - wat er echt op de site staat, i.p.v. de volledige
-   WP REST API die ook oude/verweesde posts teruggeeft).
-2. Filter naar alleen objecten van Zeeuwse Horeca Zaken.
-3. Haal van elk van die objecten de detailpagina op en lees lat/lon uit de
-   verborgen Google Maps marker-div.
-4. Schrijf het resultaat weg als data/objects.json.
+Werkwijze:
+1. Haal alle objecten op van de /objecten-collectie via Squarespace's eigen
+   JSON-API (?format=json), met paginering.
+2. Filter naar "actief" aanbod: alles wat niet als "verkocht" of "verhuurd"
+   is getagd of getiteld (dat is dus geen momentopname van alles wat er
+   ooit heeft gestaan, maar alleen wat nu echt te koop/te huur staat).
+3. Sla objecten met meerdere plaats-tags over (dat zijn regionale/brede
+   advertenties zonder een duidelijke locatie, vergelijkbaar met
+   "gezocht"-advertenties) - tenzij er alsnog een concreet adres bij staat.
+4. Per object: probeer eerst het exacte adres te vinden in de
+   "Kerngegevens"-tabel op de pagina. Is dat er niet, gebruik dan de
+   plaatsnaam (tag) als benadering.
+5. Geocodeer het adres/de plaats via de gratis Nominatim-API (OpenStreetMap)
+   naar lat/lon. Dit gebeurt met 1 request per seconde, zoals Nominatim's
+   gebruiksvoorwaarden vereisen.
+6. Schrijf het resultaat weg als data/objects.json.
 
 Vereist: pip install requests
 """
@@ -24,13 +28,12 @@ import json
 import re
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
 
-BASE_URL = "https://vmh-horeca.nl"
-ARCHIVE_URL = f"{BASE_URL}/aanbod/"
+BASE_URL = "https://www.zeeuwsehorecazaken.nl"
+COLLECTION_URL = f"{BASE_URL}/objecten"
 OUTPUT_PATH = Path(__file__).resolve().parent.parent / "data" / "objects.json"
 
 HEADERS = {
@@ -40,132 +43,143 @@ HEADERS = {
     )
 }
 
-MARKER_RE = re.compile(
-    r'<div class="marker" data-lat="\s*(-?\d+\.?\d*)\s*" '
-    r'data-lng="\s*(-?\d+\.?\d*)\s*">'
-)
+# Nominatim requires a descriptive User-Agent identifying the application,
+# and a max of 1 request/second - see
+# https://operations.osmfoundation.org/policies/nominatim/
+GEOCODE_HEADERS = {
+    "User-Agent": "zhz-map-updater/1.0 (contact: via zeeuwsehorecazaken.nl)"
+}
+GEOCODE_DELAY_SECONDS = 1.1
 
-# Each listing "card" on the archive page starts with this marker.
-# We split the page into per-card chunks and search *within* each chunk —
-# a flat regex across the whole page (the previous approach) can drift and
-# pair a card's link with a DIFFERENT card's makelaar class, because the
-# lazy ".*?" has no card boundary to stop at.
-CARD_SPLIT_MARKER = 'class="object-item"'
-HREF_RE = re.compile(r'href="(https://vmh-horeca\.nl/aanbod/[^"]+/)"')
-MAKELAAR_CLASS_RE = re.compile(r'object-makelaar makelaar-([a-z]+)')
+ADDRESS_RE = re.compile(r'Adres</th>\s*<td>([^<]+)</td>')
+SOLD_WORDS_RE = re.compile(r'verkocht|verhuurd', re.IGNORECASE)
 
 
-def fetch(url: str, session: requests.Session) -> str:
+def fetch_json(url: str, session: requests.Session) -> dict:
     resp = session.get(url, headers=HEADERS, timeout=30)
     resp.raise_for_status()
-    return resp.text
+    return resp.json()
 
 
-def get_live_objects(session: requests.Session):
-    """Return {link: makelaar_slug} for every object actually listed on
-    the /aanbod/ archive page (deduplicated), scoped strictly per card so
-    a link is never paired with another card's makelaar."""
-    html = fetch(ARCHIVE_URL, session)
-    seen = {}
-    # Skip index 0: it's the page content before the first card.
-    for card_html in html.split(CARD_SPLIT_MARKER)[1:]:
-        href_match = HREF_RE.search(card_html)
-        makelaar_match = MAKELAAR_CLASS_RE.search(card_html)
-        if not href_match or not makelaar_match:
-            continue
-        link = href_match.group(1)
-        if link not in seen:
-            seen[link] = makelaar_match.group(1)
-    return seen
+def get_active_listings(session: requests.Session):
+    """Return all non-sold/non-rented listing items from the /objecten
+    collection, paginating through Squarespace's JSON API."""
+    items = []
+    url = f"{COLLECTION_URL}?format=json"
+    for _ in range(20):  # hard cap to avoid infinite loop on unexpected data
+        data = fetch_json(url, session)
+        collection_items = (
+            data.get("collection", {}).get("items")
+            or data.get("items")
+            or []
+        )
+        for it in collection_items:
+            items.append({
+                "title": it.get("title", "").strip(),
+                "url": it.get("fullUrl"),
+                "categories": it.get("categories", []) or [],
+                "tags": it.get("tags", []) or [],
+            })
+        pagination = data.get("pagination") or {}
+        if pagination.get("nextPage"):
+            url = f"{BASE_URL}{pagination['nextPageUrl']}&format=json"
+        else:
+            break
+
+    active = []
+    for it in items:
+        cats = it["categories"]
+        sold = "verkocht" in cats or "verhuurd" in cats or SOLD_WORDS_RE.search(it["title"])
+        if not sold:
+            active.append(it)
+    return active
 
 
-def get_title_and_id(link: str, session: requests.Session):
-    """Look up id + title via the WP REST API by slug (cheap, no HTML parse)."""
-    slug = link.rstrip("/").rsplit("/", 1)[-1]
-    api_url = f"{BASE_URL}/wp-json/wp/v2/aanbod-api"
+def get_address(url: str, session: requests.Session):
+    """Return the structured 'Adres' field from an object's Kerngegevens
+    table, if present."""
+    data = fetch_json(f"{BASE_URL}{url}?format=json", session)
+    body = data.get("item", {}).get("body", "") or ""
+    m = ADDRESS_RE.search(body)
+    return m.group(1).strip() if m else None
+
+
+def geocode(query: str, session: requests.Session):
     resp = session.get(
-        api_url,
-        params={"slug": slug, "_fields": "id,title"},
-        headers=HEADERS,
-        timeout=30,
+        "https://nominatim.openstreetmap.org/search",
+        params={"format": "json", "limit": 1, "q": query},
+        headers=GEOCODE_HEADERS,
+        timeout=20,
     )
     resp.raise_for_status()
     data = resp.json()
     if not data:
         return None, None
-    return data[0]["id"], data[0]["title"]["rendered"]
-
-
-# NOTE: "aanbod" is a custom post type, so the WordPress shortlink format
-# "/?p=<id>" does NOT resolve for these objects (it 404s — that query var
-# defaults to post_type=post). Always use the real permalink (the `link`
-# already scraped from the archive page) instead of reconstructing one.
-
-
-def get_coords(link: str, session: requests.Session):
-    html = fetch(link, session)
-    m = MARKER_RE.search(html)
-    if not m:
-        return None, None
-    return float(m.group(1)), float(m.group(2))
-
-
-TARGET_MAKELAAR_SLUG = "zeeuwsehorecazaken"
-
-
-def process_object(link: str, makelaar_slug: str, session: requests.Session):
-    try:
-        obj_id, title = get_title_and_id(link, session)
-        lat, lng = get_coords(link, session)
-        if lat is None or obj_id is None:
-            return None
-        return {
-            "id": str(obj_id),
-            "title": title,
-            "lat": lat,
-            "lng": lng,
-            "link": link,  # real permalink, not the broken "?p=" shortlink
-        }
-    except Exception as exc:  # noqa: BLE001
-        print(f"  [WARN] {link}: {exc}", file=sys.stderr)
-        return None
+    return float(data[0]["lat"]), float(data[0]["lon"])
 
 
 def main():
     session = requests.Session()
 
-    print("Live objecten ophalen van /aanbod/ ...")
-    live_objects = get_live_objects(session)
-    print(f"  {len(live_objects)} unieke objecten gevonden op de site")
-
-    # Alleen objecten van Zeeuwse Horeca Zaken verwerken — dit is een
-    # site-specifieke kaart, geen behoefte om de andere makelaars te scrapen.
-    zhz_objects = {
-        link: slug for link, slug in live_objects.items()
-        if slug == TARGET_MAKELAAR_SLUG
-    }
-    print(f"  waarvan {len(zhz_objects)} van Zeeuwse Horeca Zaken")
+    print("Actieve objecten ophalen van /objecten ...")
+    active = get_active_listings(session)
+    print(f"  {len(active)} actieve (niet-verkochte/verhuurde) objecten gevonden")
 
     results = []
-    with ThreadPoolExecutor(max_workers=12) as pool:
-        futures = {
-            pool.submit(process_object, link, slug, session): link
-            for link, slug in zhz_objects.items()
-        }
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
+    skipped_regional = 0
+    skipped_no_geocode = 0
 
-    skipped = len(zhz_objects) - len(results)
-    print(f"Klaar: {len(results)} objecten met coordinaten, {skipped} overgeslagen "
-          f"(discrete verkoop / geen locatie).")
+    for item in active:
+        try:
+            address = get_address(item["url"], session)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [WARN] adres ophalen mislukt voor {item['url']}: {exc}", file=sys.stderr)
+            address = None
+
+        # Objecten met meerdere plaats-tags EN geen concreet adres zijn
+        # brede/regionale advertenties zonder een duidelijke locatie - niet
+        # geschikt voor een puntlocatie op de kaart.
+        if not address and len(item["tags"]) > 1:
+            skipped_regional += 1
+            continue
+
+        if not address and not item["tags"]:
+            skipped_regional += 1
+            continue
+
+        query = f"{address}, Nederland" if address else f"{item['tags'][0]}, Nederland"
+
+        try:
+            lat, lng = geocode(query, session)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [WARN] geocoderen mislukt voor {item['url']}: {exc}", file=sys.stderr)
+            lat, lng = None, None
+        time.sleep(GEOCODE_DELAY_SECONDS)
+
+        if lat is None:
+            skipped_no_geocode += 1
+            print(f"  [INFO] geen geocode-resultaat: {item['title']} ({query})")
+            continue
+
+        slug = item["url"].rsplit("/", 1)[-1]
+        results.append({
+            "id": slug,
+            "title": item["title"],
+            "lat": lat,
+            "lng": lng,
+            "link": f"{BASE_URL}{item['url']}",
+        })
+
+    print(
+        f"Klaar: {len(results)} objecten met locatie, "
+        f"{skipped_regional} overgeslagen (regionaal, geen 1 locatie), "
+        f"{skipped_no_geocode} overgeslagen (geocoderen mislukt)."
+    )
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
     print(f"Weggeschreven naar {OUTPUT_PATH}")
-
 
 
 if __name__ == "__main__":

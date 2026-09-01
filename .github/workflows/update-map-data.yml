@@ -24,6 +24,11 @@ jobs:
       - name: Dependencies installeren
         run: pip install requests
 
+      - name: Allerlaatste versie ophalen (voorkomt conflicten met handmatige uploads)
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
       - name: Data verversen
         run: python scripts/update_data.py
 
@@ -36,6 +41,7 @@ jobs:
             echo "Geen wijzigingen, niets te committen."
           else
             git commit -m "Automatische update van objectdata ($(date -u +'%Y-%m-%d %H:%M UTC'))"
-            git pull --rebase origin main
+            git fetch origin main
+            git rebase origin/main || git rebase --abort
             git push
           fi

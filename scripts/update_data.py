@@ -10,16 +10,14 @@ Werkwijze:
 2. Filter naar "actief" aanbod: alles wat niet als "verkocht" of "verhuurd"
    is getagd of getiteld (dat is dus geen momentopname van alles wat er
    ooit heeft gestaan, maar alleen wat nu echt te koop/te huur staat).
-3. Sla objecten met meerdere plaats-tags over (dat zijn regionale/brede
-   advertenties zonder een duidelijke locatie, vergelijkbaar met
-   "gezocht"-advertenties) - tenzij er alsnog een concreet adres bij staat.
-4. Per object: probeer eerst het exacte adres te vinden in de
-   "Kerngegevens"-tabel op de pagina. Is dat er niet, gebruik dan de
-   plaatsnaam (tag) als benadering.
-5. Geocodeer het adres/de plaats via de gratis Nominatim-API (OpenStreetMap)
+3. Alleen objecten met een daadwerkelijk vermeld adres in de
+   "Kerngegevens"-tabel worden meegenomen - geen benadering op
+   plaatsnaam-niveau. Staat er geen adres bij, dan komt het object niet
+   op de kaart (totdat het adres alsnog wordt toegevoegd op de site).
+4. Geocodeer het vermelde adres via de gratis Nominatim-API (OpenStreetMap)
    naar lat/lon. Dit gebeurt met 1 request per seconde, zoals Nominatim's
    gebruiksvoorwaarden vereisen.
-6. Schrijf het resultaat weg als data/objects.json.
+5. Schrijf het resultaat weg als data/objects.json.
 
 Vereist: pip install requests
 """
@@ -136,18 +134,15 @@ def main():
             print(f"  [WARN] adres ophalen mislukt voor {item['url']}: {exc}", file=sys.stderr)
             address = None
 
-        # Objecten met meerdere plaats-tags EN geen concreet adres zijn
-        # brede/regionale advertenties zonder een duidelijke locatie - niet
-        # geschikt voor een puntlocatie op de kaart.
-        if not address and len(item["tags"]) > 1:
+        # Alleen objecten met een daadwerkelijk vermeld adres in de
+        # Kerngegevens-tabel worden meegenomen. Geen benadering op
+        # plaatsnaam-niveau meer: als het adres niet vermeld staat, komt
+        # het object niet op de kaart.
+        if not address:
             skipped_regional += 1
             continue
 
-        if not address and not item["tags"]:
-            skipped_regional += 1
-            continue
-
-        query = f"{address}, Nederland" if address else f"{item['tags'][0]}, Nederland"
+        query = f"{address}, Nederland"
 
         try:
             lat, lng = geocode(query, session)
@@ -171,8 +166,8 @@ def main():
         })
 
     print(
-        f"Klaar: {len(results)} objecten met locatie, "
-        f"{skipped_regional} overgeslagen (regionaal, geen 1 locatie), "
+        f"Klaar: {len(results)} objecten met vermeld adres, "
+        f"{skipped_regional} overgeslagen (geen adres vermeld), "
         f"{skipped_no_geocode} overgeslagen (geocoderen mislukt)."
     )
 

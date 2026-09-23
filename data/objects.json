@@ -1,5 +1,12 @@
 [
   {
+    "id": "jells-aan-zee",
+    "title": "Jells Aan Zee",
+    "lat": 51.48783,
+    "lng": 3.50766,
+    "link": "https://www.zeeuwsehorecazaken.nl/objecten/jells-aan-zee"
+  },
+  {
     "id": "boutique-hotel-middelburg",
     "title": "Boutique Hotel en Restaurant in Middelburg ter overname",
     "lat": 51.4987222,
@@ -89,12 +96,5 @@
     "lat": 51.4983,
     "lng": 3.6095,
     "link": "https://www.zeeuwsehorecazaken.nl/objecten/casco-restaurant-middelburg"
-  },
-  {
-    "id": "jells-aan-zee",
-    "title": "Jells Aan Zee",
-    "lat": 51.48783,
-    "lng": 3.50766,
-    "link": "https://www.zeeuwsehorecazaken.nl/objecten/jells-aan-zee"
   }
 ]
